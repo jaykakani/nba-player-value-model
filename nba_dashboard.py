@@ -197,7 +197,7 @@ elif page == "Team Explorer":
     st.plotly_chart(bar_fig, width="stretch")
 
     st.subheader("Search Any Player's Fit")
-    st.caption(f"Not just the top 10 -- look up any player's FIT_SCORE against {team_abbr} specifically.")
+    st.caption(f"Not just the top 10 -- look up any player's fit score against {team_abbr} specifically.")
     all_players = sorted(rankings["PLAYER_NAME"].dropna().unique())
     searched_player = st.selectbox(
         "Search for a player", all_players, index=None, placeholder="Type a player name...",
