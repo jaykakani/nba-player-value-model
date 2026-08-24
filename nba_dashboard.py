@@ -1,4 +1,5 @@
 import pandas as pd
+import plotly.colors
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
@@ -37,10 +38,30 @@ def load_data():
     team_sheets = {
         team: pd.read_excel(DATA_PATH, sheet_name=team) for team in team_needs.index
     }
-    return rankings, team_needs, team_sheets
+    fit_matrix = pd.read_excel(DATA_PATH, sheet_name="Fit Matrix").set_index("PLAYER_NAME")
+    return rankings, team_needs, team_sheets, fit_matrix
 
 
-rankings, team_needs, team_sheets = load_data()
+def percentile_color(pct):
+    # Same RdYlGn scale used elsewhere in the app (scatter plot, fit-sheet bar charts) -- red at
+    # the 0th percentile, green at the 100th, so this reads consistently with everything else.
+    return plotly.colors.sample_colorscale("RdYlGn", pct / 100)[0]
+
+
+def render_fit_legend():
+    n_stops = 20
+    stops = plotly.colors.sample_colorscale("RdYlGn", [i / (n_stops - 1) for i in range(n_stops)])
+    gradient = ", ".join(stops)
+    st.markdown(
+        f'<div style="background: linear-gradient(to right, {gradient}); '
+        f'height: 16px; border-radius: 4px; margin-top: 4px;"></div>'
+        f'<div style="display:flex; justify-content:space-between; font-size:12px; color:gray;">'
+        f'<span>0th percentile (worst fit)</span><span>100th percentile (best fit)</span></div>',
+        unsafe_allow_html=True,
+    )
+
+
+rankings, team_needs, team_sheets, fit_matrix = load_data()
 
 st.title("🏀 NBA Player Value Model")
 st.caption(
@@ -174,6 +195,37 @@ elif page == "Team Explorer":
         xaxis_title=sort_col_labels[sort_col], yaxis_title="Player",
     )
     st.plotly_chart(bar_fig, width="stretch")
+
+    st.subheader("Search Any Player's Fit")
+    st.caption(f"Not just the top 10 -- look up any player's FIT_SCORE against {team_abbr} specifically.")
+    all_players = sorted(rankings["PLAYER_NAME"].dropna().unique())
+    searched_player = st.selectbox(
+        "Search for a player", all_players, index=None, placeholder="Type a player name...",
+        key="player_fit_search",
+    )
+    if searched_player:
+        player_team = rankings.loc[rankings["PLAYER_NAME"] == searched_player, "TEAM_ABBREVIATION"]
+        score = fit_matrix.loc[searched_player, team_abbr] if searched_player in fit_matrix.index else None
+        if len(player_team) and player_team.values[0] == team_abbr:
+            st.info(f"**{searched_player}** is already on the {team_abbr} roster.")
+        elif score is None or pd.isna(score):
+            st.warning(
+                f"**{searched_player}** isn't eligible for fit scoring against {team_abbr} "
+                "(either a top-tier/excluded player, or no matched 2025-26 salary)."
+            )
+        else:
+            team_col = fit_matrix[team_abbr].dropna()
+            pct = (team_col.rank(pct=True) * 100).loc[searched_player]
+            color = percentile_color(pct)
+            st.markdown(
+                f'<div style="background-color:{color}; padding: 18px; border-radius: 10px; '
+                f'text-align:center; margin-top:8px;">'
+                f'<span style="font-size:26px; font-weight:bold; color:black;">{score:.2f}</span><br>'
+                f'<span style="color:black;">Fit Score for {team_abbr} '
+                f'&mdash; {pct:.0f}th percentile among all eligible players</span></div>',
+                unsafe_allow_html=True,
+            )
+            render_fit_legend()
 
 elif page == "Category Rankings":
     st.header("Category Rankings")
