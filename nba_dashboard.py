@@ -287,15 +287,15 @@ else:
     priced = rankings.dropna(subset=["SALARY", "PROJECTED_SALARY"])
     if exclude_rookies and "ROOKIE_SCALE" in priced.columns:
         priced = priced[~priced["ROOKIE_SCALE"]]
-    top10 = priced.sort_values("SURPLUS", ascending=not is_best).head(10).reset_index(drop=True)
-    top10 = top10.drop(columns="RANK")
-    top10.insert(0, "RANK", top10.index + 1)
+    top20 = priced.sort_values("SURPLUS", ascending=not is_best).head(20).reset_index(drop=True)
+    top20 = top20.drop(columns="RANK")
+    top20.insert(0, "RANK", top20.index + 1)
 
     show_cols = ["RANK", "PLAYER_NAME", "TEAM_ABBREVIATION", "POSITION_GROUP", "SALARY", "PROJECTED_SALARY", "SURPLUS", "WORTH_SCORE"]
-    show_cols = [c for c in show_cols if c in top10.columns]
+    show_cols = [c for c in show_cols if c in top20.columns]
     st.dataframe(
-        top10[show_cols].round(2),
-        width="stretch", height=table_height(len(top10)), hide_index=True,
+        top20[show_cols].round(2),
+        width="stretch", height=table_height(len(top20)), hide_index=True,
         column_config={
             "PLAYER_NAME": "Player",
             "TEAM_ABBREVIATION": "Team",
@@ -309,7 +309,7 @@ else:
 
     # Sorted so rank 1 (biggest surplus for Best, biggest overpay for Worst) is the first row --
     # combined with the reversed y-axis below, that puts rank 1 at the top of the chart either way.
-    chart_df = top10.sort_values("SURPLUS", ascending=not is_best).copy()
+    chart_df = top20.sort_values("SURPLUS", ascending=not is_best).copy()
     chart_df["SURPLUS_MAGNITUDE"] = chart_df["SURPLUS"].abs()
     bar_fig = px.bar(
         chart_df,
