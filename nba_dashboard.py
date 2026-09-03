@@ -273,7 +273,20 @@ else:
         "Players the model values well below their actual salary (PROJECTED_SALARY - SALARY)."
     )
 
+    # Rookie-scale contracts (drafted 2022-2025, still in their 4-year rookie deal) are set by draft
+    # slot, not the market -- they show up as huge "surplus" purely because a great young player on a
+    # cheap rookie deal isn't actually a market inefficiency the way an underpaid veteran is. Default
+    # to excluding them on Best Value specifically, since that's where the effect shows up (a rookie
+    # deal can't be a bad contract for Worst Value the same way).
+    exclude_rookies = st.checkbox(
+        "Exclude rookie-scale contracts", value=is_best,
+        help="Rookie-scale deals (2022-2025 draft classes) are set by draft slot, not the market, "
+             "so a great young player on a cheap rookie deal isn't a real market inefficiency.",
+    )
+
     priced = rankings.dropna(subset=["SALARY", "PROJECTED_SALARY"])
+    if exclude_rookies and "ROOKIE_SCALE" in priced.columns:
+        priced = priced[~priced["ROOKIE_SCALE"]]
     top10 = priced.sort_values("SURPLUS", ascending=not is_best).head(10).reset_index(drop=True)
     top10 = top10.drop(columns="RANK")
     top10.insert(0, "RANK", top10.index + 1)
