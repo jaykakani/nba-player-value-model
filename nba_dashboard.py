@@ -34,12 +34,13 @@ st.set_page_config(page_title="NBA Player Value Model", layout="wide", page_icon
 @st.cache_data
 def load_data():
     rankings = pd.read_excel(DATA_PATH, sheet_name="Rankings")
+    rankings_playoffs = pd.read_excel(DATA_PATH, sheet_name="Rankings Playoffs")
     team_needs = pd.read_excel(DATA_PATH, sheet_name="Team Needs").set_index("TEAM_ABBREVIATION")
     team_sheets = {
         team: pd.read_excel(DATA_PATH, sheet_name=team) for team in team_needs.index
     }
     fit_matrix = pd.read_excel(DATA_PATH, sheet_name="Fit Matrix").set_index("PLAYER_NAME")
-    return rankings, team_needs, team_sheets, fit_matrix
+    return rankings, rankings_playoffs, team_needs, team_sheets, fit_matrix
 
 
 def percentile_color(pct):
@@ -61,7 +62,7 @@ def render_fit_legend():
     )
 
 
-rankings, team_needs, team_sheets, fit_matrix = load_data()
+rankings, rankings_playoffs, team_needs, team_sheets, fit_matrix = load_data()
 
 st.title("🏀 NBA Player Value Model")
 st.caption(
@@ -77,23 +78,38 @@ page = st.sidebar.radio(
 if page == "League Rankings":
     st.header("League Rankings")
 
+    season_mode = st.radio(
+        "Season", ["Regular Season", "Playoffs"], horizontal=True,
+        help="Playoffs mode scores players only against other 2026 playoff participants, using "
+             "2026 playoff stats instead of the regular season. Defensive EPM is excluded (no "
+             "playoff-specific data source), and PROJECTED_SALARY uses its own curve fit "
+             "specifically calibrated to the playoff population.",
+    )
+    active_rankings = rankings if season_mode == "Regular Season" else rankings_playoffs
+    if season_mode == "Playoffs":
+        st.caption(
+            f"{len(rankings_playoffs)} players who logged 40+ total minutes across the 2026 "
+            "playoffs. Defensive EPM excluded from WORTH_SCORE; PROJECTED_SALARY uses a separate "
+            "curve fit on playoff data."
+        )
+
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Players Scored", len(rankings))
-    col2.metric("Median Salary", f"${rankings['SALARY'].median():,.0f}")
-    col3.metric("Biggest Surplus", rankings.loc[rankings["SURPLUS"].idxmax(), "PLAYER_NAME"])
-    col4.metric("Biggest Overpay", rankings.loc[rankings["SURPLUS"].idxmin(), "PLAYER_NAME"])
+    col1.metric("Players Scored", len(active_rankings))
+    col2.metric("Median Salary", f"${active_rankings['SALARY'].median():,.0f}")
+    col3.metric("Biggest Surplus", active_rankings.loc[active_rankings["SURPLUS"].idxmax(), "PLAYER_NAME"])
+    col4.metric("Biggest Overpay", active_rankings.loc[active_rankings["SURPLUS"].idxmin(), "PLAYER_NAME"])
 
     st.subheader("Filters")
     fcol1, fcol2, fcol3 = st.columns(3)
-    teams = sorted(rankings["TEAM_ABBREVIATION"].dropna().unique())
+    teams = sorted(active_rankings["TEAM_ABBREVIATION"].dropna().unique())
     POSITION_ORDER = ["Guard", "Forward", "Guard-Forward", "Center"]
-    present_positions = set(rankings["POSITION_GROUP"].dropna().unique())
+    present_positions = set(active_rankings["POSITION_GROUP"].dropna().unique())
     positions = [p for p in POSITION_ORDER if p in present_positions]
     team_filter = fcol1.multiselect("Team", teams)
     pos_filter = fcol2.multiselect("Position", positions)
     name_filter = fcol3.text_input("Search player")
 
-    filtered = rankings.copy()
+    filtered = active_rankings.copy()
     if team_filter:
         filtered = filtered[filtered["TEAM_ABBREVIATION"].isin(team_filter)]
     if pos_filter:
